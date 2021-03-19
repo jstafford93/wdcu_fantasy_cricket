@@ -9,27 +9,30 @@ import numpy as np
 import logging
 
 
-
 def fetch_urls(base_url: str):
     first_xi_id = '1/'
     second_xi_id = '6/'
     pwick_id = '08'
-    opposition_ids = ['0' + str(i) for i in range(1, 10) if i != 8] + ['10']
+    stnins_id = '08'
+    opposition_ids_ones = ['0' + str(i) for i in range(1, 10) if i != 8] + ['10']
+    opposition_ids_twos = ['0' + str(i) for i in range(1, 10) if i != 8] + ['10']
+
     scorecards = []
-    for i in opposition_ids:
+    for i in opposition_ids_ones:
         first_xi_home_scorecard = base_url + first_xi_id + pwick_id + i
         first_xi_away_scorecard = base_url + first_xi_id + i + pwick_id
-        second_xi_home_scorecard = base_url + second_xi_id + pwick_id + i
-        second_xi_away_scorecard = base_url + second_xi_id + i + pwick_id
-        scorecards.extend([first_xi_home_scorecard, first_xi_away_scorecard, second_xi_home_scorecard, second_xi_away_scorecard])
-    print(scorecards)
+        scorecards.extend([first_xi_home_scorecard, first_xi_away_scorecard])
+    for i in opposition_ids_twos:
+        second_xi_home_scorecard = base_url + second_xi_id + stnins_id + i
+        second_xi_away_scorecard = base_url + second_xi_id + i + stnins_id
+        scorecards.extend([second_xi_home_scorecard, second_xi_away_scorecard])
     return scorecards
 
 
 def run():
     base_url = 'https://www.cricketstats.org.uk/wdcu/2019/index.php?table=0&stats=0&scorecard='
     urls = fetch_urls(base_url)
-    # urls = ['https://www.cricketstats.org.uk/wdcu/2019/index.php?table=0&stats=0&scorecard=6/0802']
+    # urls = ['https://www.cricketstats.org.uk/wdcu/2017/index.php?table=0&stats=0&scorecard=1/0207']
     df_list = []
     for url in urls:
         page = requests.get(url)
@@ -50,13 +53,13 @@ def run():
             head = soup.find('h1').get_text()
             match_details = head.split("v")
             result = None
-            if "Prestwick (25)" in base_text or "St.Ninians (25)" in base_text:
+            if "Prestwick (25)" in base_text or "St.Ninians (25)" in base_text or "St. Ninians (25)" in base_text:
                 result = "WIN"
             else:
                 result = "LOSS"
             oppo = None
             for string in match_details:
-                if string.strip() == "Prestwick" or string.strip() == "St.Ninians":
+                if "Prestwick" in string.strip() or "St.Ninians" in string.strip() or "St. Ninians" in string.strip():
                     pass
                 else:
                     oppo = string.strip()
@@ -71,8 +74,22 @@ def run():
             temp_df = my_dataframe.create_dataframe(final_tuples)
             enriched_df = WDCU_dataframe.enrich_dataframe(temp_df, oppo, date, result)
             df_list.append(enriched_df)
+    return_dfs(df_list)
+
+
+def return_dfs(df_list):
     final_df = pd.concat(df_list, ignore_index=True)
-    final_df.to_csv("PCC_2019.csv")
+    fantasy_df = WDCU_dataframe.fantasise_final_df(final_df)
+
+    # Create a Pandas Excel writer using XlsxWriter as the engine.
+    writer = pd.ExcelWriter('PCC_2019.xlsx', engine='xlsxwriter')
+
+    # Write each dataframe to a different worksheet.
+    fantasy_df.to_excel(writer, sheet_name='Summary')
+    final_df.to_excel(writer, sheet_name='MatchDetails')
+
+    # Close the Pandas Excel writer and output the Excel file.
+    writer.save()
 
 
 if __name__ == "__main__":

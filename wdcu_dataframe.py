@@ -3,6 +3,7 @@ import pandas as pd
 from typing import List
 import numpy as np
 import uuid
+from scoring_matrix import Matrix
 
 class WDCU_dataframe:
     def __init__(self, matchday: Matchday):
@@ -44,7 +45,31 @@ class WDCU_dataframe:
         enriched_df["100Scored"] = np.where(enriched_df["RunsScored"] >= 100, 1, 0)
         enriched_df["3For"] = np.where((enriched_df["Wickets"] >= 3) & (enriched_df["Wickets"] < 5), 1, 0)
         enriched_df["5For"] = np.where(enriched_df["Wickets"] >= 5, 1, 0)
+        enriched_df["Conceded45"] = np.where(enriched_df["RunsConceded"] >= 45, 1, 0)
         enriched_df["UUID"] = uuid.uuid4().hex
         return enriched_df
+
+    @staticmethod
+    def fantasise_final_df(final_df):
+        fantasy_df = final_df
+        fantasy_df['runsbonus'] = fantasy_df['RunsScored'] * Matrix['run_scored']
+        fantasy_df['50bonus'] = fantasy_df['50Scored'] * Matrix['50_scored']
+        fantasy_df['100bonus'] = fantasy_df['100Scored'] * Matrix['100_scored']
+        fantasy_df['3forbonus'] = fantasy_df['3For'] * Matrix['3_for']
+        fantasy_df['5forbonus'] = fantasy_df['5For'] * Matrix['5_for']
+        fantasy_df['conceded45deduction'] = fantasy_df['Conceded45'] * Matrix['concede_over_45']
+        fantasy_df['wicketbonus'] = fantasy_df['Wickets'] * Matrix['wicket']
+        fantasy_df['maidenbonus'] = fantasy_df['Maidens'] * Matrix['maiden']
+        fantasy_df['winbonus'] = np.where(fantasy_df["result"] == "WIN", 10, 0)
+        new_df = fantasy_df.drop(['RunsScored', 'OversBowled', 'Maidens', 'RunsConceded', 'Wickets', 'result',
+                                  '50Scored', '100Scored', '3For', '5For', 'Conceded45', 'UUID'], axis=1)
+        ultimate_df = new_df.groupby(['Name']).agg(sum)
+        ultimate_df['total'] = ultimate_df['runsbonus'] + ultimate_df['50bonus'] + ultimate_df['100bonus'] + ultimate_df['3forbonus'] + ultimate_df['5forbonus'] + ultimate_df['conceded45deduction'] + ultimate_df['wicketbonus'] + ultimate_df['maidenbonus'] + ultimate_df['winbonus']
+        clean_df = ultimate_df.sort_values(by=['total'], ascending=False)
+        return clean_df
+
+
+
+
 
 
