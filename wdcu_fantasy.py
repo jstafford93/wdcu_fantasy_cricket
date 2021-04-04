@@ -5,9 +5,9 @@ import datetime
 from matchday import Matchday
 from wdcu_dataframe import WDCU_dataframe
 import pandas as pd
-import numpy as np
-import logging
+import fantasy_team_scoring
 
+# ADD IN VALIDATION THAT CAPTAIN IS WITHIN THE SELECTION OF 5
 
 def fetch_urls(base_url: str):
     first_xi_id = '1/'
@@ -74,18 +74,23 @@ def run():
             temp_df = my_dataframe.create_dataframe(final_tuples)
             enriched_df = WDCU_dataframe.enrich_dataframe(temp_df, oppo, date, result)
             df_list.append(enriched_df)
-    return_dfs(df_list)
+    summary_df = return_dfs(df_list)
 
 
 def return_dfs(df_list):
     final_df = pd.concat(df_list, ignore_index=True)
     fantasy_df = WDCU_dataframe.fantasise_final_df(final_df)
+    fantasy_leaderboard = fantasy_team_scoring.gather_teams(fantasy_df)
+    # removing individual selection scores for cleaner TeamStandings excel output
+    fantasy_leaderboard_v2 = fantasy_leaderboard.drop(["Selection1Score", "Selection2Score", "Selection3Score", "Selection4Score",
+                              "Selection5Score", "CaptainScore"],axis=1)
 
     # Create a Pandas Excel writer using XlsxWriter as the engine.
     writer = pd.ExcelWriter('PCC_2019.xlsx', engine='xlsxwriter')
 
     # Write each dataframe to a different worksheet.
-    fantasy_df.to_excel(writer, sheet_name='Summary')
+    fantasy_leaderboard_v2.to_excel(writer, sheet_name="TeamStandings")
+    fantasy_df.to_excel(writer, sheet_name='PlayerStandings')
     final_df.to_excel(writer, sheet_name='MatchDetails')
 
     # Close the Pandas Excel writer and output the Excel file.
